@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF Creator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>GIF Creator</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="brushSize">Brush Size: <span id="brushSizeValue">5</span>px</label>
+                <input type="range" id="brushSize" min="1" max="50" value="5">
+            </div>
+            <div class="control-group">
+                <label for="brushColor">Color:</label>
+                <input type="color" id="brushColor" value="#000000">
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="drawingCanvas" width="600" height="400"></canvas>
+        </div>
+
+        <div class="recording-controls">
+            <div class="control-group">
+                <label for="captureInterval">Capture every: <span id="captureIntervalValue">100</span>ms</label>
+                <input type="range" id="captureInterval" min="50" max="500" value="100" step="25">
+            </div>
+            <button id="recordBtn" class="btn btn-record">Start Recording</button>
+        </div>
+
+        <div class="action-buttons">
+            <button id="captureFrame" class="btn btn-primary">Capture Frame</button>
+            <button id="clearCanvas" class="btn btn-secondary">Clear Canvas</button>
+            <button id="undoStroke" class="btn btn-secondary">Undo Stroke</button>
+        </div>
+
+        <div class="frames-section">
+            <h3>Frames: <span id="frameCount">0</span> (click to delete)</h3>
+            <div id="framesContainer" class="frames-container"></div>
+        </div>
+
+        <div class="gif-controls">
+            <div class="control-group">
+                <label for="frameDelay">Frame Delay: <span id="frameDelayValue">500</span>ms</label>
+                <input type="range" id="frameDelay" min="50" max="2000" value="500" step="50">
+            </div>
+            <div class="gif-buttons">
+                <button id="generateGif" class="btn btn-success">Generate GIF</button>
+                <button id="downloadGif" class="btn btn-download" disabled>Download GIF</button>
+                <button id="openGif" class="btn btn-secondary" disabled>Open in New Tab</button>
+            </div>
+        </div>
+
+        <div id="previewSection" class="preview-section" style="display: none;">
+            <h3>Preview:</h3>
+            <img id="gifPreview" alt="Generated GIF">
+        </div>
+
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
