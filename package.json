@@ -4,7 +4,8 @@
   "description": "A web-based application for creating animated GIFs by recording freehand drawings",
   "scripts": {
     "dev": "python3 -m http.server 8080",
-    "deploy": "wrangler pages deploy ./"
+    "build": "mkdir -p public && cp index.html app.js style.css gif.worker.js public/",
+    "deploy": "npm run build && npx wrangler pages deploy ./public"
   },
   "keywords": ["gif", "canvas", "drawing", "animation"],
   "license": "MIT",

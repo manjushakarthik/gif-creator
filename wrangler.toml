@@ -2,4 +2,4 @@ name = "gif-creator"
 compatibility_date = "2026-01-31"
 
 [assets]
-directory = "./"
+directory = "./public"
