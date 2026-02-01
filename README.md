@@ -101,6 +101,29 @@ gif-creator/
 └── README.md       # This file
 ```
 
+## Deploying to Cloudflare Pages
+
+### Prerequisites
+
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/install-and-update/) installed
+- Cloudflare account
+
+### Deploy
+
+1. Login to Cloudflare:
+   ```bash
+   wrangler login
+   ```
+
+2. Deploy the site:
+   ```bash
+   wrangler pages deploy ./
+   ```
+
+3. Follow the prompts to create a new project or deploy to an existing one.
+
+Your site will be available at `https://gif-creator.pages.dev` (or your custom domain).
+
 ## Technologies Used
 
 - HTML5 Canvas

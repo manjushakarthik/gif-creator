@@ -22,6 +22,13 @@ const captureIntervalInput = document.getElementById('captureInterval');
 const captureIntervalValue = document.getElementById('captureIntervalValue');
 const recordingControls = document.querySelector('.recording-controls');
 
+// Stroke mode DOM elements (will be initialized after DOM loads)
+let strokeModeToggle, strokeModeControls, strokeListContainer;
+let strokeCountSpan, generateFromStrokesBtn, previewStrokesBtn, clearStrokesBtn;
+let interStrokePauseInput, interStrokePauseValue, finalHoldInput, finalHoldValue;
+let pointsPerFrameInput, pointsPerFrameValue;
+let characterNameInput, downloadBundleBtn;
+
 // State
 let isDrawing = false;
 let lastX = 0;
@@ -35,6 +42,22 @@ let currentStroke = null;
 let isRecording = false;
 let recordingInterval = null;
 
+// Stroke mode state
+let isStrokeMode = false;
+let strokes = [];  // Array of stroke objects
+let currentStrokeData = null;  // Current stroke being recorded
+let strokeStartTime = null;
+
+// Stroke data structure:
+// {
+//   strokeNumber: number,
+//   points: [{x, y, timestamp}],
+//   color: string,
+//   brushSize: number,
+//   startTime: number,
+//   endTime: number
+// }
+
 // Initialize canvas with white background
 function initCanvas() {
     ctx.fillStyle = 'white';
@@ -42,6 +65,58 @@ function initCanvas() {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     saveCanvasState();
+    initStrokeModeElements();
+}
+
+// Initialize stroke mode DOM elements
+function initStrokeModeElements() {
+    strokeModeToggle = document.getElementById('strokeModeToggle');
+    strokeModeControls = document.getElementById('strokeModeControls');
+    clearStrokesBtn = document.getElementById('clearStrokesBtn');
+    strokeListContainer = document.getElementById('strokeListContainer');
+    strokeCountSpan = document.getElementById('strokeCount');
+    generateFromStrokesBtn = document.getElementById('generateFromStrokes');
+    previewStrokesBtn = document.getElementById('previewStrokes');
+    interStrokePauseInput = document.getElementById('interStrokePause');
+    interStrokePauseValue = document.getElementById('interStrokePauseValue');
+    finalHoldInput = document.getElementById('finalHold');
+    finalHoldValue = document.getElementById('finalHoldValue');
+    pointsPerFrameInput = document.getElementById('pointsPerFrame');
+    pointsPerFrameValue = document.getElementById('pointsPerFrameValue');
+    characterNameInput = document.getElementById('characterName');
+    downloadBundleBtn = document.getElementById('downloadBundle');
+
+    // Add event listeners for stroke mode controls
+    if (strokeModeToggle) {
+        strokeModeToggle.addEventListener('change', toggleStrokeMode);
+    }
+    if (clearStrokesBtn) {
+        clearStrokesBtn.addEventListener('click', clearStrokes);
+    }
+    if (generateFromStrokesBtn) {
+        generateFromStrokesBtn.addEventListener('click', generateGifFromStrokes);
+    }
+    if (previewStrokesBtn) {
+        previewStrokesBtn.addEventListener('click', previewStrokeAnimation);
+    }
+    if (interStrokePauseInput) {
+        interStrokePauseInput.addEventListener('input', () => {
+            interStrokePauseValue.textContent = interStrokePauseInput.value;
+        });
+    }
+    if (finalHoldInput) {
+        finalHoldInput.addEventListener('input', () => {
+            finalHoldValue.textContent = finalHoldInput.value;
+        });
+    }
+    if (pointsPerFrameInput) {
+        pointsPerFrameInput.addEventListener('input', () => {
+            pointsPerFrameValue.textContent = pointsPerFrameInput.value;
+        });
+    }
+    if (downloadBundleBtn) {
+        downloadBundleBtn.addEventListener('click', downloadBundle);
+    }
 }
 
 // Save canvas state for undo
@@ -78,6 +153,23 @@ function startDrawing(e) {
     lastX = pos.x;
     lastY = pos.y;
     currentStroke = canvas.toDataURL();
+
+    // In stroke mode, start recording stroke data
+    if (isStrokeMode) {
+        strokeStartTime = performance.now();
+        currentStrokeData = {
+            strokeNumber: strokes.length + 1,
+            points: [{
+                x: pos.x,
+                y: pos.y,
+                timestamp: 0
+            }],
+            color: brushColorInput.value,
+            brushSize: parseInt(brushSizeInput.value),
+            startTime: strokeStartTime,
+            endTime: null
+        };
+    }
 }
 
 function draw(e) {
@@ -96,6 +188,15 @@ function draw(e) {
 
     lastX = pos.x;
     lastY = pos.y;
+
+    // In stroke mode, record point data
+    if (isStrokeMode && currentStrokeData) {
+        currentStrokeData.points.push({
+            x: pos.x,
+            y: pos.y,
+            timestamp: performance.now() - strokeStartTime
+        });
+    }
 }
 
 function stopDrawing(e) {
@@ -106,7 +207,439 @@ function stopDrawing(e) {
         }
         currentStroke = null;
     }
+
+    // In stroke mode, finalize the current stroke data
+    if (isDrawing && isStrokeMode && currentStrokeData && currentStrokeData.points.length > 1) {
+        currentStrokeData.endTime = performance.now();
+        strokes.push(currentStrokeData);
+        currentStrokeData = null;
+        updateStrokesList();
+        showStatus(`Stroke ${strokes.length} recorded (${strokes[strokes.length - 1].points.length} points)`, 'success');
+    }
+
     isDrawing = false;
+}
+
+// ============= STROKE MODE FUNCTIONS =============
+
+// Toggle stroke mode on/off
+function toggleStrokeMode() {
+    isStrokeMode = strokeModeToggle.checked;
+
+    if (isStrokeMode) {
+        strokeModeControls.style.display = 'block';
+        recordingControls.style.display = 'none';
+        document.querySelector('.action-buttons').style.display = 'none';
+        canvas.classList.add('stroke-mode');
+        clearStrokes();
+        showStatus('Stroke mode enabled. Draw each stroke separately.', 'info');
+    } else {
+        strokeModeControls.style.display = 'none';
+        recordingControls.style.display = 'flex';
+        document.querySelector('.action-buttons').style.display = 'flex';
+        canvas.classList.remove('stroke-mode');
+        showStatus('Stroke mode disabled', 'info');
+    }
+}
+
+// Clear all recorded strokes
+function clearStrokes() {
+    strokes = [];
+    currentStrokeData = null;
+    generatedGifBlob = null;
+    frames = [];
+    updateStrokesList();
+    updateFramesDisplay();
+    clearCanvas();
+
+    // Disable download button
+    if (downloadBundleBtn) {
+        downloadBundleBtn.disabled = true;
+    }
+    previewSection.style.display = 'none';
+
+    showStatus('All strokes cleared', 'info');
+}
+
+// Delete a specific stroke
+function deleteStroke(index) {
+    strokes.splice(index, 1);
+    // Renumber remaining strokes
+    strokes.forEach((stroke, i) => {
+        stroke.strokeNumber = i + 1;
+    });
+    redrawAllStrokes();
+    updateStrokesList();
+    showStatus(`Stroke deleted. ${strokes.length} strokes remaining.`, 'info');
+}
+
+// Redraw all strokes on canvas
+function redrawAllStrokes() {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    strokes.forEach(stroke => {
+        drawStrokeOnCanvas(stroke);
+    });
+}
+
+// Draw a single stroke on the canvas
+function drawStrokeOnCanvas(stroke) {
+    if (stroke.points.length < 2) return;
+
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = stroke.brushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+
+    for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+    }
+    ctx.stroke();
+}
+
+// Update the strokes list display
+function updateStrokesList() {
+    if (!strokeListContainer) return;
+
+    strokeListContainer.innerHTML = '';
+    strokeCountSpan.textContent = strokes.length;
+
+    if (strokes.length === 0) {
+        strokeListContainer.innerHTML = '<div class="no-strokes">No strokes recorded yet. Draw on the canvas.</div>';
+        return;
+    }
+
+    strokes.forEach((stroke, index) => {
+        const strokeItem = document.createElement('div');
+        strokeItem.className = 'stroke-item';
+        strokeItem.innerHTML = `
+            <span class="stroke-number">${index + 1}</span>
+            <span class="stroke-info">${stroke.points.length} pts</span>
+            <span class="stroke-color" style="background-color: ${stroke.color}"></span>
+            <button class="stroke-delete" onclick="deleteStroke(${index})">×</button>
+        `;
+        strokeListContainer.appendChild(strokeItem);
+    });
+}
+
+// Interpolate points for smoother animation
+function interpolatePoints(points, targetPointsPerSegment = 3) {
+    if (points.length < 2) return points;
+
+    const interpolated = [];
+    for (let i = 0; i < points.length - 1; i++) {
+        const p1 = points[i];
+        const p2 = points[i + 1];
+
+        interpolated.push(p1);
+
+        // Add intermediate points
+        for (let j = 1; j < targetPointsPerSegment; j++) {
+            const t = j / targetPointsPerSegment;
+            interpolated.push({
+                x: p1.x + (p2.x - p1.x) * t,
+                y: p1.y + (p2.y - p1.y) * t,
+                timestamp: p1.timestamp + (p2.timestamp - p1.timestamp) * t
+            });
+        }
+    }
+    interpolated.push(points[points.length - 1]);
+
+    return interpolated;
+}
+
+// Generate frames from stroke data for progressive animation
+function generateFramesFromStrokes() {
+    const frameInterval = parseInt(frameDelayInput.value);
+    const interStrokePause = parseInt(interStrokePauseInput?.value || 200);
+    const finalHold = parseInt(finalHoldInput?.value || 800);
+    const pointsPerFrame = parseInt(pointsPerFrameInput?.value || 5);
+
+    frames = [];
+
+    // Create a temporary canvas for frame generation
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    // Start with white background
+    tempCtx.fillStyle = 'white';
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    // Capture initial empty frame
+    frames.push(tempCanvas.toDataURL('image/png'));
+
+    // Process each stroke
+    strokes.forEach((stroke, strokeIndex) => {
+        const points = stroke.points;
+
+        tempCtx.strokeStyle = stroke.color;
+        tempCtx.lineWidth = stroke.brushSize;
+        tempCtx.lineCap = 'round';
+        tempCtx.lineJoin = 'round';
+
+        // Draw stroke progressively
+        for (let i = 0; i < points.length; i += pointsPerFrame) {
+            const endIndex = Math.min(i + pointsPerFrame, points.length);
+
+            // Draw segment
+            if (i > 0 || strokeIndex > 0) {
+                tempCtx.beginPath();
+                const startIdx = Math.max(0, i - 1);
+                tempCtx.moveTo(points[startIdx].x, points[startIdx].y);
+
+                for (let j = i; j < endIndex; j++) {
+                    tempCtx.lineTo(points[j].x, points[j].y);
+                }
+                tempCtx.stroke();
+            } else if (points.length > 1) {
+                // First segment of first stroke
+                tempCtx.beginPath();
+                tempCtx.moveTo(points[0].x, points[0].y);
+                for (let j = 1; j < endIndex; j++) {
+                    tempCtx.lineTo(points[j].x, points[j].y);
+                }
+                tempCtx.stroke();
+            }
+
+            // Capture frame
+            frames.push(tempCanvas.toDataURL('image/png'));
+        }
+
+        // Add inter-stroke pause frames (show completed stroke)
+        if (strokeIndex < strokes.length - 1) {
+            const pauseFrames = Math.ceil(interStrokePause / frameInterval);
+            for (let p = 0; p < pauseFrames; p++) {
+                frames.push(tempCanvas.toDataURL('image/png'));
+            }
+        }
+    });
+
+    // Add final hold frames
+    const holdFrames = Math.ceil(finalHold / frameInterval);
+    const finalFrame = tempCanvas.toDataURL('image/png');
+    for (let h = 0; h < holdFrames; h++) {
+        frames.push(finalFrame);
+    }
+
+    return frames;
+}
+
+// Generate GIF from recorded strokes
+function generateGifFromStrokes() {
+    if (strokes.length === 0) {
+        showStatus('Please record at least one stroke first', 'error');
+        return;
+    }
+
+    showStatus('Generating frames from strokes...', 'info');
+
+    // Generate frames from stroke data
+    generateFramesFromStrokes();
+    updateFramesDisplay();
+
+    showStatus(`Generated ${frames.length} frames. Click "Generate GIF" to create the animation.`, 'success');
+
+    // Automatically trigger GIF generation
+    setTimeout(() => {
+        generateGif();
+    }, 100);
+}
+
+// Preview stroke animation without generating GIF
+let previewAnimationId = null;
+
+function previewStrokeAnimation() {
+    if (strokes.length === 0) {
+        showStatus('Please record at least one stroke first', 'error');
+        return;
+    }
+
+    // Cancel any existing preview
+    if (previewAnimationId) {
+        cancelAnimationFrame(previewAnimationId);
+        previewAnimationId = null;
+    }
+
+    showStatus('Playing stroke preview...', 'info');
+
+    const frameInterval = parseInt(frameDelayInput.value);
+    const interStrokePause = parseInt(interStrokePauseInput?.value || 200);
+    const pointsPerFrame = parseInt(pointsPerFrameInput?.value || 5);
+
+    // Clear canvas
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    let currentStrokeIndex = 0;
+    let currentPointIndex = 0;
+    let isPausing = false;
+    let pauseEndTime = 0;
+
+    function animatePreview() {
+        const now = performance.now();
+
+        if (isPausing) {
+            if (now >= pauseEndTime) {
+                isPausing = false;
+            }
+            previewAnimationId = requestAnimationFrame(animatePreview);
+            return;
+        }
+
+        if (currentStrokeIndex >= strokes.length) {
+            showStatus('Preview complete!', 'success');
+            previewAnimationId = null;
+            return;
+        }
+
+        const stroke = strokes[currentStrokeIndex];
+        const points = stroke.points;
+
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.brushSize;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Draw next segment
+        const endIndex = Math.min(currentPointIndex + pointsPerFrame, points.length);
+
+        if (currentPointIndex < points.length - 1) {
+            ctx.beginPath();
+            ctx.moveTo(points[Math.max(0, currentPointIndex - 1)].x,
+                       points[Math.max(0, currentPointIndex - 1)].y);
+
+            for (let j = currentPointIndex; j < endIndex; j++) {
+                ctx.lineTo(points[j].x, points[j].y);
+            }
+            ctx.stroke();
+        }
+
+        currentPointIndex = endIndex;
+
+        // Check if stroke is complete
+        if (currentPointIndex >= points.length) {
+            currentStrokeIndex++;
+            currentPointIndex = 0;
+
+            // Add pause between strokes
+            if (currentStrokeIndex < strokes.length) {
+                isPausing = true;
+                pauseEndTime = now + interStrokePause;
+            }
+        }
+
+        previewAnimationId = requestAnimationFrame(animatePreview);
+    }
+
+    // Start animation with frame interval timing
+    let lastFrameTime = 0;
+    function timedAnimate(timestamp) {
+        if (timestamp - lastFrameTime >= frameInterval) {
+            lastFrameTime = timestamp;
+            animatePreview();
+        }
+        if (previewAnimationId !== null && currentStrokeIndex < strokes.length) {
+            previewAnimationId = requestAnimationFrame(timedAnimate);
+        }
+    }
+
+    previewAnimationId = requestAnimationFrame(timedAnimate);
+}
+
+// Generate metadata JSON for Telugu app integration
+function generateMetadata() {
+    const characterName = characterNameInput?.value || 'unknown';
+
+    // Simplify stroke paths by sampling points (reduce file size)
+    const simplifyPoints = (points, maxPoints = 50) => {
+        if (points.length <= maxPoints) {
+            return points.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) }));
+        }
+        const step = Math.floor(points.length / maxPoints);
+        const simplified = [];
+        for (let i = 0; i < points.length; i += step) {
+            simplified.push({ x: Math.round(points[i].x), y: Math.round(points[i].y) });
+        }
+        // Always include last point
+        const last = points[points.length - 1];
+        simplified.push({ x: Math.round(last.x), y: Math.round(last.y) });
+        return simplified;
+    };
+
+    return {
+        character: characterName,
+        canvas_width: canvas.width,
+        canvas_height: canvas.height,
+        frame_rate: Math.round(1000 / parseInt(frameDelayInput.value)),
+        frame_delay_ms: parseInt(frameDelayInput.value),
+        created_at: new Date().toISOString(),
+        total_frames: frames.length,
+        stroke_count: strokes.length,
+        strokes: strokes.map((stroke, index) => ({
+            stroke_number: index + 1,
+            point_count: stroke.points.length,
+            color: stroke.color,
+            brush_size: stroke.brushSize,
+            duration_ms: Math.round(stroke.endTime - stroke.startTime),
+            // Include simplified path for Telugu app comparison
+            path: simplifyPoints(stroke.points)
+        })),
+        settings: {
+            inter_stroke_pause_ms: parseInt(interStrokePauseInput?.value || 200),
+            final_hold_ms: parseInt(finalHoldInput?.value || 800),
+            points_per_frame: parseInt(pointsPerFrameInput?.value || 5)
+        }
+    };
+}
+
+// Download ZIP bundle with GIF and metadata
+async function downloadBundle() {
+    if (!generatedGifBlob) {
+        showStatus('Please generate a GIF first', 'error');
+        return;
+    }
+
+    if (typeof JSZip === 'undefined') {
+        showStatus('Error: JSZip library not loaded', 'error');
+        return;
+    }
+
+    showStatus('Creating ZIP bundle...', 'info');
+
+    const characterName = characterNameInput?.value.trim() || 'character';
+    const metadata = generateMetadata();
+    const jsonStr = JSON.stringify(metadata, null, 2);
+
+    try {
+        const zip = new JSZip();
+
+        // Add GIF to zip
+        zip.file(`${characterName}.gif`, generatedGifBlob);
+
+        // Add metadata JSON to zip
+        zip.file(`${characterName}_metadata.json`, jsonStr);
+
+        // Generate ZIP blob
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+        // Download ZIP
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(zipBlob);
+        link.download = `${characterName}_bundle.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showStatus('ZIP bundle downloaded!', 'success');
+    } catch (err) {
+        showStatus('Error creating ZIP: ' + err.message, 'error');
+    }
 }
 
 // Undo last stroke
@@ -306,6 +839,12 @@ function generateGif() {
         downloadGifBtn.disabled = false;
         openGifBtn.disabled = false;
         generateGifBtn.disabled = false;
+
+        // Enable ZIP download button in stroke mode
+        if (isStrokeMode && downloadBundleBtn) {
+            downloadBundleBtn.disabled = false;
+        }
+
         showStatus('GIF generated successfully!', 'success');
     });
 
@@ -326,6 +865,12 @@ function downloadGif() {
         return;
     }
 
+    // Determine filename based on mode
+    let filename = 'animation.gif';
+    if (isStrokeMode && characterNameInput && characterNameInput.value.trim()) {
+        filename = `${characterNameInput.value.trim()}.gif`;
+    }
+
     // Convert blob to base64 data URL for reliable download
     const reader = new FileReader();
     reader.onload = function() {
@@ -333,7 +878,7 @@ function downloadGif() {
 
         const link = document.createElement('a');
         link.href = dataUrl;
-        link.download = 'animation.gif';
+        link.download = filename;
 
         document.body.appendChild(link);
         link.click();

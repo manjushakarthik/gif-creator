@@ -25,12 +25,61 @@
             <canvas id="drawingCanvas" width="600" height="400"></canvas>
         </div>
 
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+            <label class="toggle-label">
+                <input type="checkbox" id="strokeModeToggle">
+                <span class="toggle-text">Stroke Mode (for Telugu characters)</span>
+            </label>
+        </div>
+
+        <!-- Time-based Recording Controls (default mode) -->
         <div class="recording-controls">
             <div class="control-group">
                 <label for="captureInterval">Capture every: <span id="captureIntervalValue">100</span>ms</label>
                 <input type="range" id="captureInterval" min="50" max="500" value="100" step="25">
             </div>
             <button id="recordBtn" class="btn btn-record">Start Recording</button>
+        </div>
+
+        <!-- Stroke Mode Controls (hidden by default) -->
+        <div id="strokeModeControls" class="stroke-mode-controls" style="display: none;">
+            <div class="stroke-mode-header">
+                <h3>Stroke Recording</h3>
+                <div class="control-group">
+                    <label for="characterName">Character:</label>
+                    <input type="text" id="characterName" placeholder="e.g., ఈ" class="character-input">
+                </div>
+            </div>
+
+            <div class="stroke-settings">
+                <div class="control-group">
+                    <label for="pointsPerFrame">Points/Frame: <span id="pointsPerFrameValue">5</span></label>
+                    <input type="range" id="pointsPerFrame" min="1" max="20" value="5">
+                </div>
+                <div class="control-group">
+                    <label for="interStrokePause">Pause: <span id="interStrokePauseValue">200</span>ms</label>
+                    <input type="range" id="interStrokePause" min="0" max="1000" value="200" step="50">
+                </div>
+                <div class="control-group">
+                    <label for="finalHold">Hold: <span id="finalHoldValue">800</span>ms</label>
+                    <input type="range" id="finalHold" min="0" max="2000" value="800" step="100">
+                </div>
+            </div>
+
+            <div class="strokes-section">
+                <h4>Strokes: <span id="strokeCount">0</span></h4>
+                <div id="strokeListContainer" class="stroke-list">
+                    <div class="no-strokes">No strokes recorded yet. Draw on the canvas.</div>
+                </div>
+            </div>
+
+            <div class="stroke-actions">
+                <button id="clearStrokesBtn" class="btn btn-secondary">Clear All</button>
+                <button id="previewStrokes" class="btn btn-primary">Preview</button>
+                <button id="generateFromStrokes" class="btn btn-success">Generate GIF</button>
+                <button id="downloadBundle" class="btn btn-download" disabled>Download ZIP</button>
+            </div>
         </div>
 
         <div class="action-buttons">
@@ -65,6 +114,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

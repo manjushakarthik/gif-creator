@@ -1,0 +1,14 @@
+{
+  "name": "gif-creator",
+  "version": "1.0.0",
+  "description": "A web-based application for creating animated GIFs by recording freehand drawings",
+  "scripts": {
+    "dev": "python3 -m http.server 8080",
+    "deploy": "wrangler pages deploy ./"
+  },
+  "keywords": ["gif", "canvas", "drawing", "animation"],
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
